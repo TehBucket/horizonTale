@@ -1,8 +1,5 @@
 var C = document.getElementById('game');
 var G = C.getContext('2d'); //displays game itself
-var lastFrame = new Date().getTime();
-var fD = 0; // [last, current] how much time since last frame, to smooth observed fps
-var ran /*random int*/= function(min,max){return Math.floor(Math.random()*(max - min + 1) + min)}
 var coin /*random bool*/= function(){return (ran(0,1)==0 ? true : false)}
 var mix /*mixing colours*/= function(c,cc,n){ //adds n amount of cc to c (n is a percent, .25 or 1) (only additive or whatever its called)
 	return {r:c.r + Math.floor(cc.r*n),g:c.g + Math.floor(cc.g*n),b:c.b + Math.floor(cc.b*n)};
@@ -12,10 +9,11 @@ var rgb = function(c){with(c){
 	else{return 'rgba('+r+','+g+','+b+','+a+')'}
 }}
 
-var x = 0;
-var y = 0;
-x,y = 12;
-console.log(x,y);
+var beatCount = 0; //global timer, so that music is synced with actions
+var beat = function(n){
+	if((beatCount/n) % 1 == 0){return true}
+	else{return false}
+}
 var images = {}
 //load/write images (and sounds) memory
 var loadFiles = function(){
@@ -24,64 +22,132 @@ var loadFiles = function(){
 }
 loadFiles();
 
-var p = {x:20,y:120,w:25,h:25,img:'player'}
+var p = {x:20,y:120,w:32,h:32,img:'player',f:4,}
+var bullets = [];
 
 var drawImg = function(obj){
-	with(obj){G.drawImage(images[img],x,y);}
+	// with(obj){G.drawImage(images[img],x,y);}
+	with(obj){
+		G.drawImage(images[img]
+			,0
+			,f*h
+			,w
+			,h
+			,x
+			,y
+			,w
+			,h);
+	}
 }
 
 var co = {
-	sky:[{c:{r:44,g:44,b:44},dist:85/240},{c:{r:107,g:107,b:107},dist:113/240},{c:{r:255,g:40,b:23},dist:118/240},{c:{r:255,g:138,b:0},dist:124/240},{c:{r:255,g:255,b:0},dist:138/240},{c:{r:121,g:255,b:250},dist:162/240},{c:{r:16,b:188,g:219},dist:1},],
+	sky:[{c:{r:67,g:67,b:67},dist:85/240},{c:{r:107,g:107,b:107},dist:113/240},{c:{r:255,g:40,b:23},dist:118/240},{c:{r:255,g:138,b:0},dist:124/240},{c:{r:255,g:255,b:0},dist:138/240},{c:{r:121,g:255,b:250},dist:162/240},{c:{r:16,b:188,g:219},dist:1},],
 }
 
-var pMove = function(){
-	p.x += keys.x*fD
-	p.y += keys.y*fD
+//converts current arrow key input to axis
+var keyStuff = function(){with(keys){
+	if(up){y=-1}
+	else if(down){y=1}
+	else{y=0}
+	if(left){x=-1}
+	else if(right){x=1}
+	else{x=0}
+}}
+
+var newBullet = function(x,y,xv,yv,c,o,hp){
+	this.x = x;
+	this.y = y;
+	this.xv = xv;
+	this.yv = yv;
+	this.c = c;
+	this.o = o;
+	this.hp = hp; //degrades every frame, how long it lasts
 }
 
-var update = function(){
-	fD = (new Date().getTime() - lastFrame)/5;
-	lastFrame = new Date().getTime();
-	C.width = C.width;
-	pMove();
-	//draw all (put in function and fps balance later)	
-	//draw bg
-	G.rect(0, 0, C.width, C.height); //necessary?
-	var grad = G.createLinearGradient(0,C.height,0,0);
-	for(var i=0;i<co.sky.length-1;i++){
-		with(co.sky[i]){grad.addColorStop(dist*p.y/240, rgb(c));}
-	}
-	G.fillStyle = grad;
-	G.fill();
-	
-	drawImg(p);
+//moves and stuff for player
+var pMove = function(){with(p){
+	//move
+	x += keys.x*fD*2
+	y += keys.y*fD*2
+	//shoot
+	if(beat(10)){bullets.push(new newBullet(x+w,y+h/2,1,0,{r:255,g:255,b:255},0,500))}
+	if(beat(50)){
+		bullets.push(new newBullet(x+w,y+h/2,1,1,{r:25,g:225,b:25},0,500));
+		bullets.push(new newBullet(x+w,y+h/2,1,-1,{r:25,g:225,b:25},0,500));
+		}
+	//frames, animation
+	if(keys.up && f>0 && beat(10)){f-=1}
+	else if(keys.down && f<8 && beat(10)){f+=1}
+	else if(beat(25)&&f!=4&&!keys.up&&!keys.down){(f<4) ? f++ : f--}
+}}
+
+var bulletMove = function(){
+	var tmp = [];
+	for(var i=0;i<bullets.length-1;i++){with(bullets[i]){
+		x += xv;
+		y += yv;
+		hp--;
+		if(hp<=0){tmp.push(i)}
+	}}
+	for(var i=tmp.length-1;i>-1;i-=1){bullets.splice(tmp[i],1)}
 }
 
+////////////UPDATE///////
+function update(){
+	setTimeout(function() {
+		requestAnimationFrame(update);
+		C.width = C.width;
+		keyStuff();
+		(beatCount >= 100) ? beatCount = 0 : beatCount++;
+		pMove();
+		bulletMove();
+		//draw all (put in function and fps balance later)	
+		//draw bg
+		G.rect(0, 0, C.width, C.height); //necessary?
+		var grad = G.createLinearGradient(0,C.height,0,0);
+		for(var i=0;i<co.sky.length-1;i++){
+			with(co.sky[i]){grad.addColorStop(dist, rgb(c))}//add movement later (p.y)
+		}
+		G.fillStyle = grad;
+		G.fill();
+		//player draw
+		drawImg(p);
+		//bullets draw
+		for(var i=0;i<bullets.length-1;i++){with(bullets[i]){G.fillStyle=rgb(c);G.fillRect(x,y,5,5);}}
+		}, 1000/60);
+}
+update();
 
 //////////////////////////
 //controls
 var keys = {
 	x:0, // x and y axis instead up up/down/left/right for ease and also controller compatibility
 	y:0,
+	left:false,
+	right:false,
+	up:false,
+	down:false,
 }
 
 document.addEventListener('keydown', function(e){
-	if(e.keyCode==65||e.keyCode==37){keys.x=-1}
-	if(e.keyCode==68||e.keyCode==39){keys.x=1}
-	if(e.keyCode==87||e.keyCode==38){keys.y=-1}
-	if(e.keyCode==83||e.keyCode==40){keys.y=1}
+	if(e.keyCode==65||e.keyCode==37){keys.left=true}
+	if(e.keyCode==68||e.keyCode==39){keys.right=true}
+	if(e.keyCode==87||e.keyCode==38){keys.up=true}
+	if(e.keyCode==83||e.keyCode==40){keys.down=true}
 	// console.log(e.keyCode);
 },false);
 document.addEventListener('keyup', function(e){
-	if(e.keyCode==65||e.keyCode==37){keys.x=0}
-	if(e.keyCode==68||e.keyCode==39){keys.x=0}
-	if(e.keyCode==87||e.keyCode==38){keys.y=0}
-	if(e.keyCode==83||e.keyCode==40){keys.y=0}
+	if(e.keyCode==65||e.keyCode==37){keys.left=false}
+	if(e.keyCode==68||e.keyCode==39){keys.right=false}
+	if(e.keyCode==87||e.keyCode==38){keys.up=false}
+	if(e.keyCode==83||e.keyCode==40){keys.down=false}
 },false);
 
 //turns off keys when tabs/window is switched
 window.addEventListener('blur', function() {
-  keys.x=0;keys.y=0;
+  keys.left=false;keys.right=false;keys.up=false;keys.down=false;
 },false);
 
-var int=self.setInterval(function(){update()},1);
+// var int=self.setInterval(function(){update()},1);
+
+//testification stuff:
