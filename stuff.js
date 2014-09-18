@@ -10,15 +10,20 @@ var rgb = function(c){with(c){
 }}
 
 var beatCount = 0; //global timer, so that music is synced with actions
+var mute = false; //if sound is disabled
 var beat = function(n){
 	if((beatCount/n) % 1 == 0){return true}
 	else{return false}
 }
 var images = {}
+var sounds = {}
 //load/write images (and sounds) memory
 var loadFiles = function(){
 	images.player = new Image();
 	images.player.src = 'images/player.png';
+	//sound bits
+	sounds.hhat= new Audio("sounds/highhat.wav");
+	sounds.bass= new Audio("sounds/bass.wav");
 }
 loadFiles();
 
@@ -67,13 +72,17 @@ var newBullet = function(x,y,xv,yv,c,o,hp){
 //moves and stuff for player
 var pMove = function(){with(p){
 	//move
-	x += keys.x*fD*2
-	y += keys.y*fD*2
+	x += keys.x*2
+	y += keys.y*2
 	//shoot
-	if(beat(10)){bullets.push(new newBullet(x+w,y+h/2,1,0,{r:255,g:255,b:255},0,500))}
+	if(beat(12)){
+		if(!mute){sounds.hhat.currentTime=0;sounds.hhat.play()}
+		bullets.push(new newBullet(x+w,y+h/2,3,0,{r:255,g:255,b:255},0,500))
+		}
 	if(beat(50)){
-		bullets.push(new newBullet(x+w,y+h/2,1,1,{r:25,g:225,b:25},0,500));
-		bullets.push(new newBullet(x+w,y+h/2,1,-1,{r:25,g:225,b:25},0,500));
+		if(!mute){sounds.bass.currentTime=0;sounds.bass.play()}
+		bullets.push(new newBullet(x+w,y+h/2,2,2,{r:25,g:225,b:25},0,500));
+		bullets.push(new newBullet(x+w,y+h/2,2,-2,{r:25,g:225,b:25},0,500));
 		}
 	//frames, animation
 	if(keys.up && f>0 && beat(10)){f-=1}
@@ -98,7 +107,7 @@ function update(){
 		requestAnimationFrame(update);
 		C.width = C.width;
 		keyStuff();
-		(beatCount >= 100) ? beatCount = 0 : beatCount++;
+		(beatCount > 100) ? beatCount = 1 : beatCount++;
 		pMove();
 		bulletMove();
 		//draw all (put in function and fps balance later)	
